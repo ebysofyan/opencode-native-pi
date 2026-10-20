@@ -16,28 +16,26 @@ bundled free models. Free-model availability and access restrictions can change.
 
 ## Install
 
-Install from the public repository:
-
-```bash
-pi install git:github.com/ebysofyan/opencode-native-pi
-```
-
-Once the first npm release is published:
+Published on npm as [`opencode-native-pi`](https://www.npmjs.com/package/opencode-native-pi). Install with Pi's package
+manager:
 
 ```bash
 pi install npm:opencode-native-pi
+pi install npm:opencode-native-pi@1.0.0   # pin version
+pi install -l npm:opencode-native-pi      # project-local (.pi/settings.json)
+```
+
+No npm account is needed to install. Alternatively install the git source or a
+local checkout:
+
+```bash
+pi install git:github.com/ebysofyan/opencode-native-pi@v1.0.0
+pi install ./opencode-native-pi    # after git clone
 ```
 
 Remove any previous `opencode-pi` installation before loading this fork; both
 register the same provider and command. Run `/reload` or restart Pi, then choose
 an `opencode-cli` model through `/model`.
-
-For a local checkout:
-
-```bash
-git clone https://github.com/ebysofyan/opencode-native-pi
-pi install ./opencode-native-pi
-```
 
 ## Commands
 
