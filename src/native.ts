@@ -23,6 +23,8 @@ type RecordValue = Record<string, unknown>;
 export type NativeTool = { name: string; piName: string; description: string; parameters: Tool["parameters"] };
 export type NativeTurn = { systemPrompt: string; messages: RecordValue[]; tools: NativeTool[] };
 const HANDOFF = "PI_BRIDGE_TOOL_HANDOFF";
+/** Adapter rejection that ends the OpenCode loop once Pi owns the turn. */
+const CONTINUATION_GUARD = "Pi owns continuation; stop the OpenCode loop";
 
 // This adapter declares tools but never executes them. Pi owns every side effect.
 export const NATIVE_PLUGIN_SOURCE = String.raw`
@@ -32,21 +34,21 @@ export default {
   id: "pi-native-tools",
   setup: async (ctx) => {
     const registrations = [];
-    let requested = false;
+    let handedOff = false;
     try {
       registrations.push(await ctx.tool.transform((draft) => {
         for (const tool of turn.tools) draft.add({
           name: tool.name, description: tool.description, input: tool.parameters,
           options: { permission: "pi_bridge", codemode: false },
-          execute: async () => { throw new Error("PI_BRIDGE_TOOL_HANDOFF"); },
+          execute: async () => { handedOff = true; throw new Error("PI_BRIDGE_TOOL_HANDOFF"); },
         });
       }));
       registrations.push(await ctx.tool.hook("execute.before", () => {
+        handedOff = true;
         throw new Error("PI_BRIDGE_TOOL_HANDOFF");
       }));
       registrations.push(await ctx.session.hook("context", (event) => {
-        if (requested) throw new Error("Pi owns continuation; stop the OpenCode loop");
-        requested = true;
+        if (handedOff) throw new Error("${CONTINUATION_GUARD}");
         event.system = [{ type: "text", text: turn.systemPrompt }];
         event.messages = turn.messages;
         // OpenCode's free models require its native read declaration. It stays
@@ -266,11 +268,14 @@ export function streamNativeOpenCode(model: Model<Api>, context: Context, option
       directory = await realpath(await mkdtemp(join(tmpdir(), "pi-opencode-native-")));
       await mkdir(join(directory, ".opencode", "agents"), { recursive: true });
       await mkdir(join(directory, "adapter"));
-      await writeFile(join(directory, "turn.json"), JSON.stringify(turn), { mode: 0o600 });
-      await writeFile(join(directory, "adapter", "package.json"), JSON.stringify({ name: "pi-native-tools", type: "module", exports: { "./server": "./index.mjs" } }));
-      await writeFile(join(directory, "adapter", "index.mjs"), NATIVE_PLUGIN_SOURCE);
-      await writeFile(join(directory, ".opencode", "opencode.json"), JSON.stringify({ plugins: [join(directory, "adapter")] }));
-      await writeFile(join(directory, ".opencode", "agents", "pi-model.md"), `---\ndescription: Pi native model transport\nmode: primary\npermissions:\n  - action: "*"\n    resource: "*"\n    effect: deny\n  - action: read\n    resource: "*"\n    effect: ask\n  - action: pi_bridge\n    resource: "*"\n    effect: allow\n---\nPi owns tool execution and continuation.\n`);
+      const writes = await Promise.allSettled([
+        writeFile(join(directory, "turn.json"), JSON.stringify(turn), { mode: 0o600 }),
+        writeFile(join(directory, "adapter", "package.json"), JSON.stringify({ name: "pi-native-tools", type: "module", exports: { "./server": "./index.mjs" } })),
+        writeFile(join(directory, "adapter", "index.mjs"), NATIVE_PLUGIN_SOURCE),
+        writeFile(join(directory, ".opencode", "opencode.json"), JSON.stringify({ plugins: [join(directory, "adapter")] })),
+        writeFile(join(directory, ".opencode", "agents", "pi-model.md"), `---\ndescription: Pi native model transport\nmode: primary\npermissions:\n  - action: "*"\n    resource: "*"\n    effect: deny\n  - action: read\n    resource: "*"\n    effect: ask\n  - action: pi_bridge\n    resource: "*"\n    effect: allow\n---\nPi owns tool execution and continuation.\n`),
+      ]);
+      for (const result of writes) if (result.status === "rejected") throw result.reason;
       server = await startServer(directory, controller.signal, options?.env);
       const separator = model.id.indexOf("/");
       if (separator < 1) throw new Error("OpenCode model ID must have provider/model form");
@@ -359,7 +364,14 @@ export function streamNativeOpenCode(model: Model<Api>, context: Context, option
           throw new Error("OpenCode executed a tool instead of handing it to Pi");
         } else if (type === "session.step.failed" || type === "session.execution.failed") {
           const error = record(data.error);
-          throw new Error(typeof error.message === "string" ? error.message : "OpenCode generation failed");
+          const message = typeof error.message === "string" ? error.message : "OpenCode generation failed";
+          // Accept our loop guard only after every tool handoff was confirmed.
+          if (message !== CONTINUATION_GUARD || !calls.size || [...calls.values()].some(({ called, blocked }) => !called || !blocked)) throw new Error(message);
+          finishBlocks();
+          for (const { call, index } of calls.values()) stream.push({ type: "toolcall_end", contentIndex: index, toolCall: call, partial: output });
+          output.stopReason = "toolUse";
+          ended = true;
+          break;
         } else if (type === "session.step.ended") {
           const tokens = data.tokens ? record(data.tokens) : {};
           const cache = tokens.cache ? record(tokens.cache) : {};

@@ -35,8 +35,19 @@ package.
   wrapper and its global settings are not modified.
 - Transcript serialization failures return a stream error rather than exiting Pi.
 
+### Simplified and optimized
+
+- Require OpenCode 2.1+; remove the legacy CLI transport, XML marker parser,
+  JSON repair and persistent v1 session bookkeeping.
+- Reuse one successful CLI version probe across startup, discovery and turns;
+  failed probes remain retryable and executable changes invalidate the cache.
+- Write independent temporary request files concurrently, settling writes before
+  cleanup on failure.
+- Keep context retries available before tool handoff; block continuation only
+  after a tool handoff starts. Accept that guard only for confirmed handoffs.
+- Keep native streaming, isolated per-turn servers, tool validation and cleanup.
+
 ### Notes
 
-- The older CLI/marker transport is kept only for OpenCode v1.
 - Global OpenCode plugins, prompts and credentials are not loaded; this mode
   targets the login-free OpenCode models.

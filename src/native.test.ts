@@ -186,6 +186,28 @@ test("native calls use Pi names and only finish after confirmed handoff", async 
   assert.deepEqual(done.message.content, [{ type: "toolCall", id: "call_1", name: "read", arguments: { path: "fixture.txt" } }]);
 });
 
+test("native continuation guard completes only confirmed Pi tool handoffs", async () => {
+  const start = event("session.tool.input.started", { id: "call_1", name: "pi_0_read" });
+  const called = event("session.tool.called", { id: "call_1", input: { path: "fixture.txt" }, executed: false });
+  const blocked = event("session.tool.failed", { id: "call_1", error: { message: "PI_BRIDGE_TOOL_HANDOFF" } });
+  for (const type of ["session.step.failed", "session.execution.failed"]) {
+    const guard = event(type, { error: { message: "Pi owns continuation; stop the OpenCode loop" } });
+    const result = await collect([start, called, blocked, guard]);
+    const done = result.at(-1);
+    if (done?.type !== "done") assert.fail("confirmed handoff must survive the continuation guard");
+    assert.equal(done.reason, "toolUse");
+    assert.deepEqual(done.message.content, [{ type: "toolCall", id: "call_1", name: "read", arguments: { path: "fixture.txt" } }]);
+    assert.equal(result.filter((item) => item.type === "toolcall_end").length, 1);
+    for (const prefix of [[], [start], [start, called], [start, blocked], [start, called, blocked, event("session.tool.input.started", { id: "call_2", name: "pi_0_read" })], [event("session.text.delta", { ordinal: 0, delta: "Incomplete" })]]) {
+      const failed = await collect([...prefix, guard]);
+      assert.equal(failed.at(-1)?.type, "error");
+      assert.equal(failed.some((item) => item.type === "toolcall_end" || item.type === "done"), false);
+    }
+    const failed = await collect([start, called, blocked, event(type, { error: { message: "upstream rate limit" } })]);
+    assert.equal(failed.at(-1)?.type, "error", "real provider errors must not be swallowed");
+  }
+});
+
 test("native transport fails closed on unknown/executed/unconfirmed tools, disconnects and reasoning-only turns", async () => {
   const start = event("session.tool.input.started", { id: "call_1", name: "pi_0_read" });
   const called = event("session.tool.called", { id: "call_1", input: {} });
@@ -266,11 +288,12 @@ test("native adapter plugin has no execution path and blocks OpenCode continuati
       },
       session: { async hook(name: string, callback: (event: unknown) => void) { handlers.set(name, callback); return registration; } },
     });
-    assert.throws(() => handlers.get("execute.before")?.({ tool: "shell" }), /PI_BRIDGE_TOOL_HANDOFF/);
-    await assert.rejects(definitions[0].execute(), /PI_BRIDGE_TOOL_HANDOFF/);
     const request = { system: [], messages: [], tools: { read: { description: "internal" }, shell: {}, ffgrep: {} } };
     handlers.get("context")?.(request);
     assert.deepEqual(Object.keys(request.tools), ["read", "pi_0_read"]);
+    assert.doesNotThrow(() => handlers.get("context")?.(request), "context retries before a handoff must remain safe");
+    assert.throws(() => handlers.get("execute.before")?.({ tool: "shell" }), /PI_BRIDGE_TOOL_HANDOFF/);
+    await assert.rejects(definitions[0].execute(), /PI_BRIDGE_TOOL_HANDOFF/);
     assert.throws(() => handlers.get("context")?.(request), /Pi owns continuation/);
     await cleanup(); assert.equal(disposed, 3);
   } finally { rmSync(dir, { recursive: true, force: true }); }
