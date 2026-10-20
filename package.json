@@ -1,6 +1,6 @@
 {
   "name": "opencode-native-pi",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Bridge OpenCode CLI free models into Pi using native server-event streaming and Pi-native tool handoff",
   "type": "module",
   "main": "./src/index.ts",

@@ -4,6 +4,13 @@ All notable changes to this project are documented here. It follows
 [Semantic Versioning](https://semver.org) and
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.0.1] - 2026-10-21
+
+### Changed
+
+- README now leads with the published npm package; git and local checkouts are
+  documented as fallbacks.
+
 ## [1.0.0] - 2026-10-21
 
 First release under the `opencode-native-pi` name. Forked from `opencode-pi`
