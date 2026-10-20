@@ -5,7 +5,8 @@
   "type": "module",
   "main": "./src/index.ts",
   "files": [
-    "src",
+    "src/**/*.ts",
+    "!src/**/*.test.ts",
     "README.md",
     "CHANGELOG.md"
   ],
