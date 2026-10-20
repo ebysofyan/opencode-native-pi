@@ -1,0 +1,57 @@
+{
+  "name": "opencode-native-pi",
+  "version": "1.0.0",
+  "description": "Bridge OpenCode CLI free models into Pi using native server-event streaming and Pi-native tool handoff",
+  "type": "module",
+  "main": "./src/index.ts",
+  "files": [
+    "src",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "npm run build && node --test dist/*.test.js",
+    "prepublishOnly": "npm run build"
+  },
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "keywords": [
+    "pi-package",
+    "pi",
+    "coding-agent",
+    "opencode",
+    "free-models",
+    "custom-provider",
+    "native-sse"
+  ],
+  "author": "Eby Sofyan",
+  "contributors": [
+    "luongnv89 (upstream opencode-pi)"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ebysofyan/opencode-native-pi.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ebysofyan/opencode-native-pi/issues"
+  },
+  "homepage": "https://github.com/ebysofyan/opencode-native-pi",
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "^1.3.0",
+    "@earendil-works/pi-ai": "^1.3.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
