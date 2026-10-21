@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1017"/><stop offset="1" stop-color="#131a24"/>
+    </linearGradient>
+    <linearGradient id="bar" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4ade80"/><stop offset="1" stop-color="#38bdf8"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1200" height="6" fill="url(#bar)"/>
+  <g transform="translate(80,120)">
+    <text x="0" y="0" fill="#e2e8f0" font-size="54" font-weight="700">opencode-native-pi</text>
+    <text x="0" y="58" fill="#7dd3fc" font-size="27">OpenCode free models inside Pi</text>
+    <text x="0" y="120" fill="#94a3b8" font-size="23">native server-event streaming · Pi-owned continuation</text>
+  </g>
+  <g transform="translate(80,360)" font-size="21">
+    <rect x="0" y="0" width="316" height="56" rx="28" fill="#0f2b22" stroke="#2f6f56"/>
+    <text x="26" y="36" fill="#86efac">OpenCode 2.1+ required</text>
+    <rect x="340" y="0" width="366" height="56" rx="28" fill="#10222f" stroke="#2b5b7a"/>
+    <text x="366" y="36" fill="#93c5fd">openai-compatible provider</text>
+    <rect x="730" y="0" width="310" height="56" rx="28" fill="#2a2033" stroke="#5b4470"/>
+    <text x="756" y="36" fill="#d8b4fe">zero runtime deps</text>
+  </g>
+  <g transform="translate(80,505)">
+    <rect x="0" y="0" width="1040" height="1" fill="#25303d"/>
+    <text x="0" y="58" fill="#64748b" font-size="21">$ pi install npm:opencode-native-pi</text>
+    <text x="1040" y="58" fill="#4b5563" font-size="21" text-anchor="end">github.com/ebysofyan/opencode-native-pi</text>
+  </g>
+</svg>

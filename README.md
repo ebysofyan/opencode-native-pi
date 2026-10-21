@@ -1,3 +1,5 @@
+![opencode-native-pi](https://raw.githubusercontent.com/ebysofyan/opencode-native-pi/main/assets/gallery.png)
+
 # opencode-native-pi
 
 Use OpenCode's login-free models inside [Pi](https://pi.dev), with native SSE
@@ -21,7 +23,7 @@ manager:
 
 ```bash
 pi install npm:opencode-native-pi
-pi install npm:opencode-native-pi@1.0.1   # pin version
+pi install npm:opencode-native-pi@1.0.2   # pin version
 pi install -l npm:opencode-native-pi      # project-local (.pi/settings.json)
 ```
 
@@ -29,7 +31,7 @@ No npm account is needed to install. Alternatively install the git source or a
 local checkout:
 
 ```bash
-pi install git:github.com/ebysofyan/opencode-native-pi@v1.0.1
+pi install git:github.com/ebysofyan/opencode-native-pi@v1.0.2
 pi install ./opencode-native-pi    # after git clone
 ```
 
