@@ -5,7 +5,8 @@
 Use OpenCode's login-free models inside [Pi](https://pi.dev), with native SSE
 streaming and Pi-owned tool execution. Forked from
 [opencode-pi](https://github.com/luongnv89/pi-extensions/tree/main/extensions/opencode-pi).
-Provider ID stays `opencode-cli`; slash command stays `/opencode-pi`.
+Displayed as **OpenCode Native Pi**; slash command is `/opencode-native-pi`.
+Provider ID stays `opencode-cli` for saved-session compatibility.
 
 ## Requirements
 
@@ -23,7 +24,7 @@ manager:
 
 ```bash
 pi install npm:opencode-native-pi
-pi install npm:opencode-native-pi@1.0.2   # pin version
+pi install npm:opencode-native-pi@1.0.3   # pin version
 pi install -l npm:opencode-native-pi      # project-local (.pi/settings.json)
 ```
 
@@ -31,23 +32,23 @@ No npm account is needed to install. Alternatively install the git source or a
 local checkout:
 
 ```bash
-pi install git:github.com/ebysofyan/opencode-native-pi@v1.0.2
+pi install git:github.com/ebysofyan/opencode-native-pi@v1.0.3
 pi install ./opencode-native-pi    # after git clone
 ```
 
 Remove any previous `opencode-pi` installation before loading this fork; both
-register the same provider and command. Run `/reload` or restart Pi, then choose
+register the same provider. Run `/reload` or restart Pi, then choose
 an `opencode-cli` model through `/model`.
 
 ## Commands
 
 ```text
-/opencode-pi          Read-only TUI panel; status outside TUI
-/opencode-pi status   Cached status and registered models
-/opencode-pi models   List model IDs
-/opencode-pi update   Refresh catalog and capabilities
-/opencode-pi test     Show smoke-test instructions
-/opencode-pi help     Configuration help
+/opencode-native-pi          Read-only TUI panel; status outside TUI
+/opencode-native-pi status   Cached status and registered models
+/opencode-native-pi models   List model IDs
+/opencode-native-pi update   Refresh catalog and capabilities
+/opencode-native-pi test     Show smoke-test instructions
+/opencode-native-pi help     Configuration help
 ```
 
 The panel hides configured values and performs no discovery or writes. Explicit
@@ -61,7 +62,7 @@ The panel hides configured values and performs no discovery or writes. Explicit
 | `OPENCODE_PI_MODELS` | Comma/space-separated model IDs; missing provider defaults to `opencode/` |
 
 Explicit model IDs skip startup discovery and initially use conservative
-text-only, non-reasoning metadata. Run `/opencode-pi update` to enrich them with
+text-only, non-reasoning metadata. Run `/opencode-native-pi update` to enrich them with
 catalog capabilities and costs. Without an override, discovery selects active
 models with zero input/output cost; a failed catalog lookup uses bundled model
 IDs with conservative metadata instead.
@@ -87,6 +88,10 @@ Each turn:
 Context retries before a tool handoff are allowed. Once a handoff starts, a guard
 prevents OpenCode from continuing independently. That guard is treated as a
 successful handoff only when every requested tool has been confirmed blocked.
+Valid Pi tool names (`bash`, `read`, `ffgrep`, etc.) stay unchanged so native
+declarations agree with Pi's system instructions and history. Only names outside
+the provider's name/length limits need aliases. Each request gets a cloned
+transcript so OpenCode cannot mutate the source history during a retry.
 Unknown tools, incomplete handoffs, executed tools, reasoning-only replies and
 broken event streams fail visibly.
 

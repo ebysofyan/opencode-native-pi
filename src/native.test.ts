@@ -123,6 +123,29 @@ for(const e of ${JSON.stringify([event("session.text.delta", { ordinal: 0, delta
   } finally { rmSync(join(ack, ".."), { recursive: true, force: true }); }
 });
 
+test("native declarations preserve Pi tool names used in system instructions and history", () => {
+  const turn = buildNativeTurn(context([read, { ...read, name: "bash" }, { ...read, name: "ffgrep" }]), false);
+  assert.deepEqual(turn.tools.map(({ name, piName }) => ({ name, piName })), [
+    { name: "read", piName: "read" }, { name: "bash", piName: "bash" }, { name: "ffgrep", piName: "ffgrep" },
+  ]);
+  assert.ok(!turn.systemPrompt.includes("pi_*"));
+});
+
+test("native bash requests use their declared name while undeclared bash stays blocked", async () => {
+  const events = await collect([
+    event("session.tool.input.started", { id: "call_bash", name: "bash" }),
+    event("session.tool.called", { id: "call_bash", input: { command: "printf SYNTHETIC" } }),
+    event("session.tool.failed", { id: "call_bash", error: { message: "PI_BRIDGE_TOOL_HANDOFF" } }),
+    event("session.step.ended", { finish: "tool-calls" }),
+  ], context([{ name: "bash", description: "Run command", parameters: { type: "object", properties: { command: { type: "string" } }, required: ["command"] } }]));
+  const done = events.at(-1);
+  if (done?.type !== "done") assert.fail("bash must reach Pi");
+  assert.equal(done.reason, "toolUse");
+  assert.deepEqual(done.message.content, [{ type: "toolCall", id: "call_bash", name: "bash", arguments: { command: "printf SYNTHETIC" } }]);
+  const rejected = await collect([event("session.tool.input.started", { id: "call_bash", name: "bash" })], context([read]));
+  assert.equal(rejected.at(-1)?.type, "error");
+});
+
 test("native images are validated before starting OpenCode", () => {
   for (const [mimeType, data] of [["text/html", "aGVsbG8="], ["image/png", "not base64!"], ["image/png", ""]]) {
     const ctx: Context = { messages: [{ role: "user", timestamp: 1, content: [{ type: "image", mimeType, data }] }] };
@@ -142,7 +165,7 @@ test("native thinking ends when answer starts, rather than inflating thinking du
 
 test("native final tool input fills a missing streamed suffix and preserves Pi ffgrep name", async () => {
   const events = await collect([
-    event("session.tool.input.started", { id: "call_1", name: "pi_0_ffgrep" }),
+    event("session.tool.input.started", { id: "call_1", name: "ffgrep" }),
     event("session.tool.input.delta", { id: "call_1", delta: '{"pattern":' }),
     event("session.tool.input.ended", { id: "call_1", text: '{"pattern":"needle"}' }),
     event("session.tool.called", { id: "call_1", input: { pattern: "needle" } }),
@@ -173,7 +196,7 @@ test("registered v2 provider dispatches to native SSE instead of the legacy CLI"
 
 test("native calls use Pi names and only finish after confirmed handoff", async () => {
   const events = await collect([
-    event("session.tool.input.started", { id: "call_1", name: "pi_0_read" }),
+    event("session.tool.input.started", { id: "call_1", name: "read" }),
     event("session.tool.input.delta", { id: "call_1", delta: '{"path":"fixture.txt"}' }),
     event("session.tool.called", { id: "call_1", input: { path: "fixture.txt" }, executed: false }),
     event("session.tool.failed", { id: "call_1", error: { type: "unknown", message: "PI_BRIDGE_TOOL_HANDOFF" }, executed: false }),
@@ -187,7 +210,7 @@ test("native calls use Pi names and only finish after confirmed handoff", async 
 });
 
 test("native continuation guard completes only confirmed Pi tool handoffs", async () => {
-  const start = event("session.tool.input.started", { id: "call_1", name: "pi_0_read" });
+  const start = event("session.tool.input.started", { id: "call_1", name: "read" });
   const called = event("session.tool.called", { id: "call_1", input: { path: "fixture.txt" }, executed: false });
   const blocked = event("session.tool.failed", { id: "call_1", error: { message: "PI_BRIDGE_TOOL_HANDOFF" } });
   for (const type of ["session.step.failed", "session.execution.failed"]) {
@@ -198,7 +221,7 @@ test("native continuation guard completes only confirmed Pi tool handoffs", asyn
     assert.equal(done.reason, "toolUse");
     assert.deepEqual(done.message.content, [{ type: "toolCall", id: "call_1", name: "read", arguments: { path: "fixture.txt" } }]);
     assert.equal(result.filter((item) => item.type === "toolcall_end").length, 1);
-    for (const prefix of [[], [start], [start, called], [start, blocked], [start, called, blocked, event("session.tool.input.started", { id: "call_2", name: "pi_0_read" })], [event("session.text.delta", { ordinal: 0, delta: "Incomplete" })]]) {
+    for (const prefix of [[], [start], [start, called], [start, blocked], [start, called, blocked, event("session.tool.input.started", { id: "call_2", name: "read" })], [event("session.text.delta", { ordinal: 0, delta: "Incomplete" })]]) {
       const failed = await collect([...prefix, guard]);
       assert.equal(failed.at(-1)?.type, "error");
       assert.equal(failed.some((item) => item.type === "toolcall_end" || item.type === "done"), false);
@@ -209,13 +232,13 @@ test("native continuation guard completes only confirmed Pi tool handoffs", asyn
 });
 
 test("native transport fails closed on unknown/executed/unconfirmed tools, disconnects and reasoning-only turns", async () => {
-  const start = event("session.tool.input.started", { id: "call_1", name: "pi_0_read" });
+  const start = event("session.tool.input.started", { id: "call_1", name: "read" });
   const called = event("session.tool.called", { id: "call_1", input: {} });
   for (const events of [
     [event("session.tool.input.started", { id: "call_1", name: "ffgrep" })],
     [start, called, ended],
     [start, event("session.tool.called", { id: "call_1", input: {}, executed: true })],
-    [start, called, event("session.tool.failed", { id: "call_1", error: { message: "PI_BRIDGE_TOOL_HANDOFF" } }), event("session.tool.input.started", { id: "call_2", name: "pi_0_read" }), event("session.step.ended", { finish: "tool-calls" })],
+    [start, called, event("session.tool.failed", { id: "call_1", error: { message: "PI_BRIDGE_TOOL_HANDOFF" } }), event("session.tool.input.started", { id: "call_2", name: "read" }), event("session.step.ended", { finish: "tool-calls" })],
     [null],
     [event("session.text.delta", { ordinal: 0, delta: "Hello" }), event("session.text.ended", { ordinal: 0, text: "Changed" })],
     [start, called, event("session.tool.completed", { id: "call_1" }), ended],
@@ -288,10 +311,14 @@ test("native adapter plugin has no execution path and blocks OpenCode continuati
       },
       session: { async hook(name: string, callback: (event: unknown) => void) { handlers.set(name, callback); return registration; } },
     });
-    const request = { system: [], messages: [], tools: { read: { description: "internal" }, shell: {}, ffgrep: {} } };
+    const request: { system: unknown[]; messages: { role: string; content: { type: string }[] }[]; tools: Record<string, unknown> } = { system: [], messages: [], tools: { read: { description: "internal" }, shell: {}, ffgrep: {} } };
     handlers.get("context")?.(request);
-    assert.deepEqual(Object.keys(request.tools), ["read", "pi_0_read"]);
+    assert.deepEqual(Object.keys(request.tools), ["read"]);
     assert.doesNotThrow(() => handlers.get("context")?.(request), "context retries before a handoff must remain safe");
+    const historyLength = request.messages.length;
+    request.messages.push({ role: "assistant", content: [{ type: "text" }] });
+    handlers.get("context")?.(request);
+    assert.equal(request.messages.length, historyLength, "native mutations must not alter the source transcript");
     assert.throws(() => handlers.get("execute.before")?.({ tool: "shell" }), /PI_BRIDGE_TOOL_HANDOFF/);
     await assert.rejects(definitions[0].execute(), /PI_BRIDGE_TOOL_HANDOFF/);
     assert.throws(() => handlers.get("context")?.(request), /Pi owns continuation/);

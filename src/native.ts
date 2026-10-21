@@ -50,11 +50,11 @@ export default {
       registrations.push(await ctx.session.hook("context", (event) => {
         if (handedOff) throw new Error("${CONTINUATION_GUARD}");
         event.system = [{ type: "text", text: turn.systemPrompt }];
-        event.messages = turn.messages;
+        event.messages = structuredClone(turn.messages);
         // OpenCode's free models require its native read declaration. It stays
         // approval-gated and the execute.before guard also prevents execution.
         const read = event.tools.read;
-        event.tools = read ? { read: { ...read, description: "OpenCode internal tool. Use the pi_* tools instead." } } : {};
+        event.tools = read ? { read: { ...read, description: "OpenCode internal tool. Do not call this tool unless Pi has supplied its schema." } } : {};
         for (const tool of turn.tools) event.tools[tool.name] = { description: tool.description, input: tool.parameters };
       }));
     } catch (error) {
@@ -81,9 +81,9 @@ function validateImage(image: ImageContent): ImageContent {
 export function buildNativeTurn(context: Context, supportsImages: boolean): NativeTurn {
   const hasSystem = context.messages.some((message) => message.role === "system");
   const tools = (hasSystem ? getCurrentTools(context.messages) : context.tools ?? []).map((tool, index) => ({
-    name: `pi_${index}_${tool.name.replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 40)}`,
+    name: /^[a-zA-Z0-9_-]{1,64}$/.test(tool.name) ? tool.name : `pi_${index}_${tool.name.replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 40)}`,
     piName: tool.name,
-    description: tool.description,
+    description: `Pi tool ${tool.name}: ${tool.description}`,
     parameters: tool.parameters,
   }));
   const aliases = new Map(tools.map((tool) => [tool.piName, tool.name]));
@@ -121,7 +121,7 @@ export function buildNativeTurn(context: Context, supportsImages: boolean): Nati
   }
   const systemPrompt = hasSystem ? getCurrentSystemPrompt(context.messages) : context.systemPrompt ?? "";
   return {
-    systemPrompt: `${systemPrompt}\n\nYou are the assistant running inside Pi. Use the native pi_* tools for Pi operations; their results arrive in the conversation. Never emit XML tool markers or call OpenCode's internal read tool. Give a final answer or call a tool; reasoning alone is not a response.`,
+    systemPrompt: `${systemPrompt}\n\nYou are the assistant running inside Pi. Use the tools with their exact declared names for Pi operations; their results arrive in the conversation. Tools described as Pi tools are executed by Pi. Never emit XML tool markers or call tools marked OpenCode internal. Give a final answer or call a tool; reasoning alone is not a response.`,
     messages,
     tools,
   };

@@ -119,7 +119,7 @@ export async function showOpenCodePanelList(ctx: any, title: string, lines: stri
 
 async function showOpenCodePanel(ctx: any): Promise<void> {
   while (true) {
-    const choice = await ctx.ui.select("opencode-pi (read-only)", [
+    const choice = await ctx.ui.select("opencode-native-pi (read-only)", [
       OPENCODE_PANEL_STATUS,
       OPENCODE_PANEL_CONFIG,
       OPENCODE_PANEL_MODELS,
@@ -145,7 +145,7 @@ async function showOpenCodePanel(ctx: any): Promise<void> {
     }
 
     if (choice === OPENCODE_PANEL_CONFIG) {
-      const detail = await showOpenCodePanelList(ctx, "opencode-pi configuration (environment presence)", [
+      const detail = await showOpenCodePanelList(ctx, "opencode-native-pi config (environment presence)", [
         `OPENCODE_PI_BIN: ${panelEnvState("OPENCODE_PI_BIN")}`,
         `OPENCODE_PI_MODELS: ${panelEnvState("OPENCODE_PI_MODELS")}`,
       ]);
@@ -463,7 +463,7 @@ async function captureOk(args: string[]): Promise<string> {
 /** Build the install/setup instructions shown when the opencode CLI is unusable. */
 export function setupGuidance(error: string): string {
   return [
-    "opencode-pi could not use the local OpenCode CLI.",
+    "opencode-native-pi could not use the local OpenCode CLI.",
     `Reason: ${error}`,
     "Install OpenCode (https://opencode.ai), ensure `opencode --version` works on PATH, then reload Pi.",
     "Set OPENCODE_PI_BIN to override the executable path.",
@@ -506,7 +506,7 @@ export async function discoverModels(opts?: {
   // models to register, so the fast (non-forced) path skips spawning
   // opencode entirely rather than making explicitly configured users pay a
   // discovery timeout on every startup when the binary is missing or slow.
-  // `forceDiscovery` (used by the user-initiated /opencode-pi update
+  // `forceDiscovery` (used by the user-initiated /opencode-native-pi update
   // command) still runs discovery so configured models can be enriched with
   // real capability metadata (reasoning/image/limits) on request.
   if (configured?.length && !opts?.forceDiscovery) {
@@ -561,7 +561,7 @@ async function refreshModels(
 
   // Re-register the provider with the updated model list
   const providerConfig: Parameters<ExtensionAPI["registerProvider"]>[1] = {
-    name: "OpenCode CLI",
+    name: "OpenCode Native Pi",
     baseUrl: "cli:opencode",
     apiKey: "opencode-cli-no-api-key",
     api: API_ID,
@@ -577,7 +577,7 @@ async function refreshModels(
 
   const newModels = models.filter((model) => !previousModels.has(model.id));
 
-  let msg = `opencode-pi: refreshed ${models.length} model(s).`;
+  let msg = `opencode-native-pi: refreshed ${models.length} model(s).`;
   if (newModels.length > 0) {
     msg += ` ${newModels.length} new: ${newModels
       .slice(0, 5)
@@ -619,7 +619,7 @@ export function streamOpenCode(
 function providerModel(model: OpenCodeModelInfo) {
   return {
     id: model.id,
-    name: `${model.name} (OpenCode CLI)`,
+    name: `${model.name} (OpenCode Native Pi)`,
     reasoning: model.reasoning,
     ...(model.thinkingLevelMap
       ? { thinkingLevelMap: model.thinkingLevelMap }
@@ -637,7 +637,7 @@ function statusLines(): string[] {
   const lines = [
     `Provider: ${PROVIDER_ID}`,
     `OpenCode binary: ${opencodeBin()}`,
-    `OpenCode installed: ${existsSync(opencodeBin()) || opencodeBin() === "opencode" ? "check PATH with /opencode-pi test" : "no"}`,
+    `OpenCode installed: ${existsSync(opencodeBin()) || opencodeBin() === "opencode" ? "check PATH with /opencode-native-pi test" : "no"}`,
     `Registered models: ${registeredModels.length}`,
     `Last discovery: ${lastDiscoveryTime ? new Date(lastDiscoveryTime).toLocaleString() : "never"}`,
   ];
@@ -661,7 +661,7 @@ function statusLines(): string[] {
     "Requires OpenCode 2.1+; native streaming with Pi-owned tool execution.",
   );
   lines.push(
-    "Run /opencode-pi update to refresh the model list from opencode.",
+    "Run /opencode-native-pi update to refresh the model list from opencode.",
   );
   return lines;
 }
@@ -672,7 +672,7 @@ export default async function opencodePiExtension(pi: ExtensionAPI) {
   lastDiscoveryTime = time;
 
   pi.registerProvider(PROVIDER_ID, {
-    name: "OpenCode CLI",
+    name: "OpenCode Native Pi",
     baseUrl: "cli:opencode",
     apiKey: "opencode-cli-no-api-key",
     api: API_ID,
@@ -689,25 +689,25 @@ export default async function opencodePiExtension(pi: ExtensionAPI) {
         ? "OPENCODE_PI_MODELS skipped discovery, so this was not detected at startup. "
         : "";
       ctx.ui.notify(
-        `opencode-pi: ${fastPathNote}${setupGuidance(cliStatus.detail ?? cliStatus.summary)}`,
+        `opencode-native-pi: ${fastPathNote}${setupGuidance(cliStatus.detail ?? cliStatus.summary)}`,
         "warning",
       );
       return;
     }
     ctx.ui.notify(
-      `opencode-pi: registered ${registeredModels.length} OpenCode CLI model(s). Use /model and pick ${PROVIDER_ID}.`,
+      `opencode-native-pi: registered ${registeredModels.length} OpenCode Native Pi model(s). Use /model and pick ${PROVIDER_ID}.`,
       "info",
     );
     if (lastDiscoveryError) {
       ctx.ui.notify(
-        `opencode-pi: model discovery used fallback (${lastDiscoveryError})`,
+        `opencode-native-pi: model discovery used fallback (${lastDiscoveryError})`,
         "warning",
       );
     }
   });
 
-  pi.registerCommand("opencode-pi", {
-    description: "OpenCode CLI bridge status and setup help",
+  pi.registerCommand("opencode-native-pi", {
+    description: "OpenCode Native Pi status and setup help",
     handler: async (args: string, ctx: any) => {
       const trimmedArgs = args.trim();
       if (trimmedArgs.length === 0 && ctx.mode === "tui" && ctx.hasUI) {
@@ -747,7 +747,7 @@ export default async function opencodePiExtension(pi: ExtensionAPI) {
       }
       if (sub === "help") {
         ctx.ui.notify(
-          "Usage: /opencode-pi [status|models|test|update|help]",
+          "Usage: /opencode-native-pi [status|models|test|update|help]",
           "info",
         );
         ctx.ui.notify(
@@ -761,7 +761,7 @@ export default async function opencodePiExtension(pi: ExtensionAPI) {
         return;
       }
       ctx.ui.notify(
-        `Unknown /opencode-pi subcommand: ${sub}. Try /opencode-pi help`,
+        `Unknown /opencode-native-pi subcommand: ${sub}. Try /opencode-native-pi help`,
         "warning",
       );
     },

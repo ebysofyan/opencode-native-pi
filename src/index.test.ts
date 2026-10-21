@@ -164,19 +164,39 @@ test("long ASCII details retain every character in order with short titles and b
   const segments: string[] = [];
   await showOpenCodePanelList({ ui: { select: async (title: string, options: string[]) => {
     assert.ok(title.length <= 38);
-    assert.ok(title.startsWith("opencode-pi configuration ("));
+    assert.ok(title.startsWith("opencode-native-pi config ("));
     assert.ok(options.length <= 5);
     assert.ok(options[0]?.startsWith("• "));
     segments.push(options[0]!.slice(2));
     assert.ok(options[0]!.slice(2).length <= 40);
     return options.includes("Next") ? "Next" : "Back";
-  } } }, "opencode-pi configuration (environment presence)", records);
+  } } }, "opencode-native-pi config (environment presence)", records);
   assert.equal(segments.join(""), records.join(""));
   assert.deepEqual(segments.slice(0, 2), ["Back", records[1]!.slice(0, 40)]);
   await showOpenCodePanelList({ ui: { select: async (title: string) => {
     assert.equal(title, `${"X".repeat(30)} (1/1)`);
     return undefined;
   } } }, "X".repeat(80), ["ok"]);
+});
+
+test("extension registers only its own command and display branding", async () => {
+  const previousModels = process.env.OPENCODE_PI_MODELS;
+  process.env.OPENCODE_PI_MODELS = "synthetic-free";
+  const commands: string[] = [];
+  let providerId: string | undefined;
+  let providerConfig: Parameters<ExtensionAPI["registerProvider"]>[1] | undefined;
+  try {
+    await opencodePiExtension({
+      registerProvider(id: string, config: Parameters<ExtensionAPI["registerProvider"]>[1]) { providerId = id; providerConfig = config; },
+      registerCommand(name: string) { commands.push(name); },
+      on() {},
+    } as unknown as ExtensionAPI);
+    assert.deepEqual(commands, ["opencode-native-pi"]);
+    assert.equal(providerId, "opencode-cli");
+    assert.equal(providerConfig?.api, "opencode-cli-runner");
+    assert.equal(providerConfig?.name, "OpenCode Native Pi");
+    assert.match(providerConfig?.models?.[0]?.name ?? "", /\(OpenCode Native Pi\)$/);
+  } finally { restoreEnv("OPENCODE_PI_MODELS", previousModels); }
 });
 
 function panelOpenCodeCommand() {
@@ -189,18 +209,18 @@ function panelOpenCodeCommand() {
       registerProvider() {},
       on() {},
       registerCommand(name: string, registered: unknown) {
-        if (name === "opencode-pi") command = registered as PanelCommand;
+        if (name === "opencode-native-pi") command = registered as PanelCommand;
       },
     } as unknown as ExtensionAPI,
     get command(): PanelCommand {
-      if (!command) throw new Error("opencode-pi command was not registered");
+      if (!command) throw new Error("opencode-native-pi command was not registered");
       return command;
     },
   };
 }
 
-test("bare opencode-pi uses a cancellable read-only panel without discovery or CLI calls", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "opencode-pi-panel-"));
+test("bare opencode-native-pi uses a cancellable read-only panel without discovery or CLI calls", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "opencode-native-pi-panel-"));
   const marker = join(dir, "cli-invoked");
   const binPath = join(dir, "opencode-panel.js");
   writeFileSync(
@@ -243,7 +263,7 @@ test("bare opencode-pi uses a cancellable read-only panel without discovery or C
       ui: {
         async select(title: string, options: string[]) {
           selections.push({ title, options });
-          return title !== "opencode-pi (read-only)" && options.includes("Next") ? "Next" : choices.shift();
+          return title !== "opencode-native-pi (read-only)" && options.includes("Next") ? "Next" : choices.shift();
         },
         notify() {
           throw new Error("the read-only panel must not notify");
@@ -269,7 +289,7 @@ test("bare opencode-pi uses a cancellable read-only panel without discovery or C
       ui: {
         async select(title: string, options: string[]) {
           configSelections.push({ title, options });
-          return title !== "opencode-pi (read-only)" && options.includes("Next") ? "Next" : configChoices.shift();
+          return title !== "opencode-native-pi (read-only)" && options.includes("Next") ? "Next" : configChoices.shift();
         },
       },
     });
@@ -284,7 +304,7 @@ test("bare opencode-pi uses a cancellable read-only panel without discovery or C
   }
 });
 
-test("opencode-pi panel hides configured model IDs, supports cancellation, and preserves non-TUI fallback", async () => {
+test("opencode-native-pi panel hides configured model IDs, supports cancellation, and preserves non-TUI fallback", async () => {
   const previousBin = process.env.OPENCODE_PI_BIN;
   const previousModels = process.env.OPENCODE_PI_MODELS;
   process.env.OPENCODE_PI_BIN = "/tmp/opencode-panel-secret-bin";
@@ -332,7 +352,7 @@ test("opencode-pi panel hides configured model IDs, supports cancellation, and p
       ui: {
         async select(title: string, options: string[]) {
           selections.push({ title, options });
-          return title !== "opencode-pi (read-only)" && options.includes("Next") ? "Next" : choices.shift();
+          return title !== "opencode-native-pi (read-only)" && options.includes("Next") ? "Next" : choices.shift();
         },
       },
     });
@@ -357,7 +377,7 @@ test("opencode-pi panel hides configured model IDs, supports cancellation, and p
       },
     });
     assert.equal(explicitSelectCalls, 0);
-    assert.ok(explicitNotifications.some((message) => message.includes("Usage: /opencode-pi")));
+    assert.ok(explicitNotifications.some((message) => message.includes("Usage: /opencode-native-pi")));
 
     const notifications: string[] = [];
     calls = 0;
@@ -384,7 +404,7 @@ test("opencode-pi panel hides configured model IDs, supports cancellation, and p
   }
 });
 
-test("opencode-pi keeps informational rows in detail and supports Back, another section, Close, and Escape", async () => {
+test("opencode-native-pi keeps informational rows in detail and supports Back, another section, Close, and Escape", async () => {
   const previousModels = process.env.OPENCODE_PI_MODELS;
   process.env.OPENCODE_PI_MODELS = "custom-panel-model";
 
@@ -401,23 +421,23 @@ test("opencode-pi keeps informational rows in detail and supports Back, another 
       ui: {
         async select(title: string, options: string[]) {
           selections.push({ title, options });
-          if (title === "opencode-pi (read-only)") return topChoices.shift();
+          if (title === "opencode-native-pi (read-only)") return topChoices.shift();
           if (title.startsWith("OpenCode CLI status (cached) (")) {
             if (statusDetailVisits++ === 0) return options[0];
             return "Back";
           }
-          if (title.startsWith("opencode-pi configuration (")) return "Close";
+          if (title.startsWith("opencode-native-pi config (")) return "Close";
           throw new Error(`unexpected panel ${title}`);
         },
       },
     });
 
     assert.deepEqual(selections.map(({ title }) => title), [
-      "opencode-pi (read-only)",
+      "opencode-native-pi (read-only)",
       "OpenCode CLI status (cached) (1/3)",
       "OpenCode CLI status (cached) (1/3)",
-      "opencode-pi (read-only)",
-      "opencode-pi configuration (1/2)",
+      "opencode-native-pi (read-only)",
+      "opencode-native-pi config (1/2)",
     ]);
     assert.ok(selections[1]!.options.includes("Back"));
     assert.ok(selections[1]!.options.includes("Close"));
@@ -432,12 +452,12 @@ test("opencode-pi keeps informational rows in detail and supports Back, another 
       ui: {
         async select(title: string, options: string[]) {
           escapedSelections.push({ title, options });
-          return title === "opencode-pi (read-only)" ? "Models (cached)" : undefined;
+          return title === "opencode-native-pi (read-only)" ? "Models (cached)" : undefined;
         },
       },
     });
     assert.deepEqual(escapedSelections.map(({ title }) => title), [
-      "opencode-pi (read-only)",
+      "opencode-native-pi (read-only)",
       "OpenCode models (cached) (1/3)",
     ]);
     assert.ok(escapedSelections[1]!.options.includes("Back"));
