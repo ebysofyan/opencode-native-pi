@@ -2,43 +2,25 @@
 
 # opencode-native-pi
 
-Use OpenCode's login-free models inside [Pi](https://pi.dev), with native SSE
-streaming and Pi-owned tool execution. Forked from
-[opencode-pi](https://github.com/luongnv89/pi-extensions/tree/main/extensions/opencode-pi).
-Displayed as **OpenCode Native Pi**; slash command is `/opencode-native-pi`.
-Provider ID stays `opencode-cli` for saved-session compatibility.
+Use OpenCode's login-free models inside [Pi](https://pi.dev) with native SSE
+streaming and Pi-owned tool execution. Slash command: `/opencode-native-pi`.
+Provider ID: `opencode-cli`.
 
 ## Requirements
 
 - Pi Coding Agent 1.3.x
-- OpenCode **2.1+** on PATH (`opencode --version`)
-- Node.js compatible with your Pi installation
-
-OpenCode 1.x and 2.0 are not supported. No OpenCode login is required for the
-bundled free models. Free-model availability and access restrictions can change.
+- OpenCode **2.1+** on PATH (`opencode --version`); 1.x and 2.0 are unsupported
+- No OpenCode login needed for the bundled free models
 
 ## Install
 
-Published on npm as [`opencode-native-pi`](https://www.npmjs.com/package/opencode-native-pi). Install with Pi's package
-manager:
-
 ```bash
 pi install npm:opencode-native-pi
-pi install npm:opencode-native-pi@1.0.3   # pin version
-pi install -l npm:opencode-native-pi      # project-local (.pi/settings.json)
+pi install -l npm:opencode-native-pi                       # project-local
+pi install git:github.com/ebysofyan/opencode-native-pi     # git source
 ```
 
-No npm account is needed to install. Alternatively install the git source or a
-local checkout:
-
-```bash
-pi install git:github.com/ebysofyan/opencode-native-pi@v1.0.3
-pi install ./opencode-native-pi    # after git clone
-```
-
-Remove any previous `opencode-pi` installation before loading this fork; both
-register the same provider. Run `/reload` or restart Pi, then choose
-an `opencode-cli` model through `/model`.
+Then `/reload` or restart Pi and pick an `opencode-cli` model with `/model`.
 
 ## Commands
 
@@ -47,94 +29,51 @@ an `opencode-cli` model through `/model`.
 /opencode-native-pi status   Cached status and registered models
 /opencode-native-pi models   List model IDs
 /opencode-native-pi update   Refresh catalog and capabilities
-/opencode-native-pi test     Show smoke-test instructions
+/opencode-native-pi test     Smoke-test instructions
 /opencode-native-pi help     Configuration help
 ```
-
-The panel hides configured values and performs no discovery or writes. Explicit
-`status` and `models` commands display model IDs.
 
 ## Configuration
 
 | Variable | Purpose |
 |---|---|
-| `OPENCODE_PI_BIN` | Executable path; default `opencode` |
-| `OPENCODE_PI_MODELS` | Comma/space-separated model IDs; missing provider defaults to `opencode/` |
+| `OPENCODE_NATIVE_PI_BIN` | Executable path; default `opencode` |
+| `OPENCODE_NATIVE_PI_MODELS` | Comma/space-separated model IDs; missing prefix defaults to `opencode/` |
 
-Explicit model IDs skip startup discovery and initially use conservative
-text-only, non-reasoning metadata. Run `/opencode-native-pi update` to enrich them with
-catalog capabilities and costs. Without an override, discovery selects active
-models with zero input/output cost; a failed catalog lookup uses bundled model
-IDs with conservative metadata instead.
+Explicit model IDs skip startup discovery and start with conservative
+text-only metadata; `/opencode-native-pi update` enriches them with catalog
+capabilities and costs. Without an override, discovery registers active models
+with zero input/output cost, falling back to bundled IDs if lookup fails.
 
-Successful CLI version checks are shared across startup and turns. Failed checks
-are retried. After replacing OpenCode in place, reload Pi to refresh the cached
-version.
+## How it works
 
-## Transport and safety
+Each turn starts a private authenticated `opencode serve` on loopback with
+isolated config/data directories (no global plugins or credentials), replays the
+Pi transcript, system prompt and tool schemas, streams text/reasoning/tool-input
+events into Pi, then tears the session and server down. OpenCode is blocked from
+executing tools; only declared Pi tools with confirmed blocked handoffs come back
+to Pi. Failures are visible: unknown or executed tools, incomplete handoffs,
+reasoning-only replies and broken streams fail the turn.
 
-Each turn:
+No XML tool markers, JSON repair, server pool or cross-turn session cache. Turn
+timeout defaults to 180 s (Pi's `timeoutMs`).
 
-1. Converts the current Pi transcript, system prompt and tool schemas into a
-   structured OpenCode request, including supported images and tool results.
-2. Starts a private authenticated `opencode serve` on loopback with isolated
-   config/data directories. Global OpenCode plugins and credentials are not loaded.
-3. Streams text, reasoning and tool-input events directly into Pi events.
-4. Blocks OpenCode tool execution. Only declared Pi tools with confirmed blocked
-   handoffs are returned to Pi for execution.
-5. Interrupts/deletes the OpenCode session, stops the server, and removes temporary
-   files before emitting Pi's terminal event. Cancellation and timeouts clean up too.
+## Privacy
 
-Context retries before a tool handoff are allowed. Once a handoff starts, a guard
-prevents OpenCode from continuing independently. That guard is treated as a
-successful handoff only when every requested tool has been confirmed blocked.
-Valid Pi tool names (`bash`, `read`, `ffgrep`, etc.) stay unchanged so native
-declarations agree with Pi's system instructions and history. Only names outside
-the provider's name/length limits need aliases. Each request gets a cloned
-transcript so OpenCode cannot mutate the source history during a retry.
-Unknown tools, incomplete handoffs, executed tools, reasoning-only replies and
-broken event streams fail visibly.
-
-No legacy CLI transport, XML tool markers, JSON repair, persistent server pool or
-cross-turn OpenCode session cache is used. Pi's transcript is replayed each turn;
-provider-side prompt caching may still apply. Default turn timeout is 180 seconds,
-overridden by Pi's `timeoutMs`.
-
-## Latency
-
-Version probing is shared and temporary request files are written concurrently.
-Per-turn server isolation and cleanup remain deliberate safety boundaries.
-
-A three-turn synthetic text smoke test on OpenCode 2.1 measured local readiness
-at **331 / 198 / 207 ms** after these changes, versus **378 / 205 / 209 ms** before.
-These few samples do not establish a reliable speedup. Post-change total times
-were **3.40 / 29.85 / 2.30 seconds**: model/network latency dominates and varies.
-The pre-change run also exposed two continuation-guard failures; all three
-post-change turns returned `OK`.
+The bridge runs the real OpenCode engine and never extracts login tokens or calls
+model providers directly, but prompts, tool results and images do reach the
+selected model service. Free-model providers may retain inputs; don't send
+confidential or patient data without checking their current policies.
 
 ## Development
 
-Install TypeScript and the matching Pi peer packages in your development checkout,
-then run:
-
 ```bash
-npm test
+npm test              # build + node:test
 npm pack --dry-run
 ```
 
-Tests cover model discovery, minimum versions, shared probes, read-only UI,
-structured context/images, SSE boundaries, handoff validation, context retries,
-cancellation and cleanup. Test sources stay in git, not the npm tarball.
+## License
 
-## Privacy and terms
-
-The bridge runs the real OpenCode engine; it does not extract login tokens or call
-model-provider APIs directly. Prompts, tool results and images still reach the
-selected model service through OpenCode. Free-model providers may retain inputs;
-do not send confidential or patient data without reviewing their current policies.
-Using a CLI bridge does not waive OpenCode's or the model provider's terms.
-
-## Attribution
-
-Derived from `opencode-pi` 1.5.0 by luongnv89 and pi-extensions contributors,
-MIT licensed. Original copyright is retained in [LICENSE](LICENSE).
+MIT. Derived from the upstream 1.5.0 Pi extension by luongnv89 and
+pi-extensions contributors; original copyright retained in
+[LICENSE](LICENSE).

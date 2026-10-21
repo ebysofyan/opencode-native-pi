@@ -56,7 +56,7 @@ server.listen(0,"127.0.0.1",()=>{
 process.on("SIGTERM",()=>{output?.end();server.close(()=>process.exit(0));});
 `, "utf8");
   chmodSync(bin, 0o755);
-  try { return await run({ env: { OPENCODE_PI_BIN: bin }, timeoutMs: 5000 }, directory); }
+  try { return await run({ env: { OPENCODE_NATIVE_PI_BIN: bin }, timeoutMs: 5000 }, directory); }
   finally { rmSync(directory, { recursive: true, force: true }); }
 }
 async function collect(events: unknown[], ctx = context()): Promise<AssistantMessageEvent[]> {
@@ -181,15 +181,15 @@ test("native final tool input fills a missing streamed suffix and preserves Pi f
 
 test("registered v2 provider dispatches to native SSE instead of the legacy CLI", async () => {
   await withServer([event("session.text.delta", { ordinal: 0, delta: "Native transport" }), ended], async (options) => {
-    const previous = process.env.OPENCODE_PI_BIN;
-    process.env.OPENCODE_PI_BIN = options.env?.OPENCODE_PI_BIN;
+    const previous = process.env.OPENCODE_NATIVE_PI_BIN;
+    process.env.OPENCODE_NATIVE_PI_BIN = options.env?.OPENCODE_NATIVE_PI_BIN;
     try {
       const message = await streamOpenCode(model, context(), options).result();
       assert.equal(message.stopReason, "stop");
       assert.deepEqual(message.content, [{ type: "text", text: "Native transport" }]);
     } finally {
-      if (previous === undefined) delete process.env.OPENCODE_PI_BIN;
-      else process.env.OPENCODE_PI_BIN = previous;
+      if (previous === undefined) delete process.env.OPENCODE_NATIVE_PI_BIN;
+      else process.env.OPENCODE_NATIVE_PI_BIN = previous;
     }
   });
 });
@@ -268,7 +268,7 @@ test("native transport denies permissions and ignores other sessions", async () 
 });
 
 test("native transport handles missing executables and cancellation before startup", async () => {
-  const missing = await streamNativeOpenCode(model, context(), { env: { OPENCODE_PI_BIN: "/nonexistent/pi-opencode-server" }, timeoutMs: 1000 }).result();
+  const missing = await streamNativeOpenCode(model, context(), { env: { OPENCODE_NATIVE_PI_BIN: "/nonexistent/pi-opencode-server" }, timeoutMs: 1000 }).result();
   assert.equal(missing.stopReason, "error");
   assert.match(missing.errorMessage ?? "", /Could not start OpenCode/);
   const controller = new AbortController(); controller.abort();

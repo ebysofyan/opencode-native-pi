@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { streamNativeOpenCode } from "./native.js";
+import { opencodeBinFrom, streamNativeOpenCode } from "./native.js";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
   createAssistantMessageEventStream,
@@ -81,8 +81,8 @@ const OPENCODE_PANEL_MODELS = "Models (cached)";
 const OPENCODE_PANEL_BACK = "Back";
 const OPENCODE_PANEL_CLOSE = "Close";
 
-function panelEnvState(name: string): string {
-  return process.env[name]?.trim() ? "set" : "default";
+function envState(suffix: "BIN" | "MODELS"): string {
+  return process.env[`OPENCODE_NATIVE_PI_${suffix}`]?.trim() ? "set" : "default";
 }
 
 function cachedPanelState(value: boolean | undefined, positive: string, negative: string): string {
@@ -146,8 +146,8 @@ async function showOpenCodePanel(ctx: any): Promise<void> {
 
     if (choice === OPENCODE_PANEL_CONFIG) {
       const detail = await showOpenCodePanelList(ctx, "opencode-native-pi config (environment presence)", [
-        `OPENCODE_PI_BIN: ${panelEnvState("OPENCODE_PI_BIN")}`,
-        `OPENCODE_PI_MODELS: ${panelEnvState("OPENCODE_PI_MODELS")}`,
+        `OPENCODE_NATIVE_PI_BIN: ${envState("BIN")}`,
+        `OPENCODE_NATIVE_PI_MODELS: ${envState("MODELS")}`,
       ]);
       if (detail === "close") return;
       continue;
@@ -167,11 +167,11 @@ async function showOpenCodePanel(ctx: any): Promise<void> {
 }
 
 function opencodeBin(): string {
-  return process.env.OPENCODE_PI_BIN?.trim() || "opencode";
+  return opencodeBinFrom() ?? "opencode";
 }
 
 function configuredModels(): string[] | undefined {
-  const raw = process.env.OPENCODE_PI_MODELS?.trim();
+  const raw = process.env.OPENCODE_NATIVE_PI_MODELS?.trim();
   if (!raw) return undefined;
   return raw
     .split(/[\s,]+/)
@@ -466,7 +466,7 @@ export function setupGuidance(error: string): string {
     "opencode-native-pi could not use the local OpenCode CLI.",
     `Reason: ${error}`,
     "Install OpenCode (https://opencode.ai), ensure `opencode --version` works on PATH, then reload Pi.",
-    "Set OPENCODE_PI_BIN to override the executable path.",
+    "Set OPENCODE_NATIVE_PI_BIN to override the executable path.",
   ].join(" ");
 }
 
@@ -502,7 +502,7 @@ export async function discoverModels(opts?: {
 }> {
   const configured = configuredModels();
   lastDiscoverySkipped = Boolean(configured?.length && !opts?.forceDiscovery);
-  // An explicit OPENCODE_PI_MODELS list already tells us exactly which
+  // An explicit OPENCODE_NATIVE_PI_MODELS list already tells us exactly which
   // models to register, so the fast (non-forced) path skips spawning
   // opencode entirely rather than making explicitly configured users pay a
   // discovery timeout on every startup when the binary is missing or slow.
@@ -597,7 +597,7 @@ export function streamOpenCode(
   void (async () => {
     try {
       options?.signal?.throwIfAborted();
-      const status = await checkCliStatus(options?.env?.OPENCODE_PI_BIN?.trim() || opencodeBin());
+      const status = await checkCliStatus(opencodeBinFrom(options?.env) ?? opencodeBin());
       options?.signal?.throwIfAborted();
       if (!status.ok) throw new Error(status.detail ?? status.summary);
       const source = streamNativeOpenCode(model, context, options);
@@ -666,7 +666,7 @@ function statusLines(): string[] {
   return lines;
 }
 
-export default async function opencodePiExtension(pi: ExtensionAPI) {
+export default async function opencodeNativePiExtension(pi: ExtensionAPI) {
   const { models, time } = await discoverModels();
   registeredModels = models;
   lastDiscoveryTime = time;
@@ -686,7 +686,7 @@ export default async function opencodePiExtension(pi: ExtensionAPI) {
     if (!cliStatus.ok) {
       const fastPathConfigured = Boolean(configuredModels()?.length);
       const fastPathNote = fastPathConfigured
-        ? "OPENCODE_PI_MODELS skipped discovery, so this was not detected at startup. "
+        ? "OPENCODE_NATIVE_PI_MODELS skipped discovery, so this was not detected at startup. "
         : "";
       ctx.ui.notify(
         `opencode-native-pi: ${fastPathNote}${setupGuidance(cliStatus.detail ?? cliStatus.summary)}`,
@@ -724,7 +724,7 @@ export default async function opencodePiExtension(pi: ExtensionAPI) {
         for (const model of registeredModels)
           ctx.ui.notify(`${PROVIDER_ID}/${model.id}`, "info");
         ctx.ui.notify(
-          `Override with OPENCODE_PI_MODELS="opencode/model-a,opencode/model-b"`,
+          `Override with OPENCODE_NATIVE_PI_MODELS="opencode/model-a,opencode/model-b"`,
           "info",
         );
         return;
@@ -751,11 +751,11 @@ export default async function opencodePiExtension(pi: ExtensionAPI) {
           "info",
         );
         ctx.ui.notify(
-          "Set OPENCODE_PI_BIN to override the opencode executable.",
+          "Set OPENCODE_NATIVE_PI_BIN to override the opencode executable.",
           "info",
         );
         ctx.ui.notify(
-          "Set OPENCODE_PI_MODELS to register a custom comma-separated model list.",
+          "Set OPENCODE_NATIVE_PI_MODELS to register a custom comma-separated model list.",
           "info",
         );
         return;

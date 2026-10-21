@@ -19,8 +19,8 @@ async function withCli(run: (log: () => string[]) => Promise<void>, version = "o
   const dir = mkdtempSync(join(tmpdir(), "pi-native-catalog-"));
   const bin = join(dir, "opencode.cjs");
   const log = join(dir, "calls.log");
-  const previousBin = process.env.OPENCODE_PI_BIN;
-  const previousModels = process.env.OPENCODE_PI_MODELS;
+  const previousBin = process.env.OPENCODE_NATIVE_PI_BIN;
+  const previousModels = process.env.OPENCODE_NATIVE_PI_MODELS;
   writeFileSync(bin, `#!/usr/bin/env node
 const fs=require('node:fs');
 const args=process.argv.slice(2).join(' ');
@@ -34,11 +34,11 @@ if(args==='api GET /api/model'){
 console.error('unexpected CLI call');process.exit(1);
 `);
   chmodSync(bin, 0o755);
-  process.env.OPENCODE_PI_BIN = bin;
-  delete process.env.OPENCODE_PI_MODELS;
+  process.env.OPENCODE_NATIVE_PI_BIN = bin;
+  delete process.env.OPENCODE_NATIVE_PI_MODELS;
   try { await run(() => readFileSync(log, "utf8").trim().split("\n")); }
   finally {
-    for (const [key, value] of [["OPENCODE_PI_BIN", previousBin], ["OPENCODE_PI_MODELS", previousModels]]) {
+    for (const [key, value] of [["OPENCODE_NATIVE_PI_BIN", previousBin], ["OPENCODE_NATIVE_PI_MODELS", previousModels]]) {
       if (value === undefined) delete process.env[key!]; else process.env[key!] = value;
     }
     rmSync(dir, { recursive: true, force: true });
@@ -73,14 +73,14 @@ test("old, unknown and unsupported versions fail before native transport starts"
 test("failed probes retry after an executable is repaired at the same path", async () => {
   await withCli(async () => {
     assert.equal((await checkCliStatus()).ok, false);
-    writeFileSync(process.env.OPENCODE_PI_BIN!, '#!/usr/bin/env node\nconsole.log("opencode v2.1.0");\n');
+    writeFileSync(process.env.OPENCODE_NATIVE_PI_BIN!, '#!/usr/bin/env node\nconsole.log("opencode v2.1.0");\n');
     assert.equal((await checkCliStatus()).ok, true);
   }, "broken");
 });
 
 test("configured catalog skips discovery, explicit refresh enriches paid models", async () => {
   await withCli(async (log) => {
-    process.env.OPENCODE_PI_MODELS = "paid,paid,custom-free";
+    process.env.OPENCODE_NATIVE_PI_MODELS = "paid,paid,custom-free";
     const fallback = await discoverModels();
     assert.deepEqual(fallback.models.map((item) => item.id), ["opencode/paid", "opencode/custom-free"]);
     assert.equal(fallback.models[0]?.reasoning, false);

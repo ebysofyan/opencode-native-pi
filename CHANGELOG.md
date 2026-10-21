@@ -4,14 +4,23 @@ All notable changes to this project are documented here. It follows
 [Semantic Versioning](https://semver.org) and
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.0.0] - 2026-10-21
+
+### Changed (breaking)
+
+- Environment settings are `OPENCODE_NATIVE_PI_BIN` and
+  `OPENCODE_NATIVE_PI_MODELS`. The pre-rename names are removed, with no alias.
+- Display names, notices and the internal extension symbol carry the
+  `opencode-native-pi` brand throughout. Provider ID `opencode-cli` is unchanged.
+- README reduced to install, commands, configuration, behavior and privacy.
+
 ## [1.0.3] - 2026-10-21
 
 ### Changed
 
 - Rename the slash command to `/opencode-native-pi`, notices/panels to
   `opencode-native-pi`, and provider/model display names to **OpenCode Native Pi**.
-  Keep provider/API IDs and environment variables unchanged for compatibility;
-  retain upstream attribution. The old `/opencode-pi` command is no longer registered.
+  Provider/API IDs stay `opencode-cli`. Upstream attribution kept.
 
 ### Fixed
 
@@ -40,9 +49,9 @@ All notable changes to this project are documented here. It follows
 
 ## [1.0.0] - 2026-10-21
 
-First release under the `opencode-native-pi` name. Forked from `opencode-pi`
-1.5.0 (MIT, luongnv89/pi-extensions) and versioned from 1.0.0 as a separate
-package.
+First release under the `opencode-native-pi` name. Forked from the upstream
+1.5.0 extension (MIT, luongnv89/pi-extensions) and versioned from 1.0.0 as a
+separate package.
 
 ### Added
 

@@ -165,6 +165,10 @@ export async function* nativeEvents(body: ReadableStream<Uint8Array>): AsyncGene
   }
 }
 
+export function opencodeBinFrom(env?: SimpleStreamOptions["env"]): string | undefined {
+  return (env?.OPENCODE_NATIVE_PI_BIN ?? process.env.OPENCODE_NATIVE_PI_BIN)?.trim() || undefined;
+}
+
 type NativeServer = { child: ChildProcess; closed: Promise<void>; base: string; authorization: string };
 async function startServer(directory: string, signal: AbortSignal, env?: SimpleStreamOptions["env"]): Promise<NativeServer> {
   signal.throwIfAborted();
@@ -172,7 +176,7 @@ async function startServer(directory: string, signal: AbortSignal, env?: SimpleS
   delete inheritedEnv.OPENCODE_CONFIG;
   delete inheritedEnv.OPENCODE_CONFIG_CONTENT;
   delete inheritedEnv.OPENCODE_SERVER_PASSWORD;
-  const child = spawn(env?.OPENCODE_PI_BIN ?? process.env.OPENCODE_PI_BIN?.trim() ?? "opencode", ["serve", "--hostname", "127.0.0.1", "--port", "0"], {
+  const child = spawn(opencodeBinFrom(env) ?? "opencode", ["serve", "--hostname", "127.0.0.1", "--port", "0"], {
     cwd: directory,
     stdio: ["ignore", "pipe", "pipe"],
     env: { ...inheritedEnv, PWD: directory, OPENCODE_CONFIG_DIR: join(directory, "config"), XDG_CONFIG_HOME: join(directory, "xdg-config"), XDG_DATA_HOME: join(directory, "data"), XDG_STATE_HOME: join(directory, "state"), XDG_CACHE_HOME: join(directory, "cache"), OPENCODE_DISABLE_PROJECT_CONFIG: "0", OPENCODE_CONFIG_PROJECT_DISABLE: "0", OPENCODE_DISABLE_UPDATE_CHECK: "1" },

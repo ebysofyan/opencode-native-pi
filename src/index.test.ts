@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import opencodePiExtension, { isActiveModel, isFreeModel, parseApiModels, parseModelCost, showOpenCodePanelList } from "./index.js";
+import opencodeNativePiExtension, { isActiveModel, isFreeModel, parseApiModels, parseModelCost, showOpenCodePanelList } from "./index.js";
+import { opencodeBinFrom } from "./native.js";
 
 function restoreEnv(key: string, value: string | undefined): void {
   if (value === undefined) delete process.env[key];
@@ -180,13 +181,13 @@ test("long ASCII details retain every character in order with short titles and b
 });
 
 test("extension registers only its own command and display branding", async () => {
-  const previousModels = process.env.OPENCODE_PI_MODELS;
-  process.env.OPENCODE_PI_MODELS = "synthetic-free";
+  const previousModels = process.env.OPENCODE_NATIVE_PI_MODELS;
+  process.env.OPENCODE_NATIVE_PI_MODELS = "synthetic-free";
   const commands: string[] = [];
   let providerId: string | undefined;
   let providerConfig: Parameters<ExtensionAPI["registerProvider"]>[1] | undefined;
   try {
-    await opencodePiExtension({
+    await opencodeNativePiExtension({
       registerProvider(id: string, config: Parameters<ExtensionAPI["registerProvider"]>[1]) { providerId = id; providerConfig = config; },
       registerCommand(name: string) { commands.push(name); },
       on() {},
@@ -196,7 +197,12 @@ test("extension registers only its own command and display branding", async () =
     assert.equal(providerConfig?.api, "opencode-cli-runner");
     assert.equal(providerConfig?.name, "OpenCode Native Pi");
     assert.match(providerConfig?.models?.[0]?.name ?? "", /\(OpenCode Native Pi\)$/);
-  } finally { restoreEnv("OPENCODE_PI_MODELS", previousModels); }
+  } finally { restoreEnv("OPENCODE_NATIVE_PI_MODELS", previousModels); }
+});
+
+test("OPENCODE_NATIVE_PI_BIN overrides the OpenCode executable", () => {
+  assert.equal(opencodeBinFrom({ OPENCODE_NATIVE_PI_BIN: "/opt/opencode" }), "/opt/opencode");
+  assert.equal(opencodeBinFrom({ OPENCODE_NATIVE_PI_BIN: "  " }), undefined);
 });
 
 function panelOpenCodeCommand() {
@@ -229,9 +235,9 @@ test("bare opencode-native-pi uses a cancellable read-only panel without discove
     "utf8",
   );
   chmodSync(binPath, 0o755);
-  const previousBin = process.env.OPENCODE_PI_BIN;
-  const previousModels = process.env.OPENCODE_PI_MODELS;
-  process.env.OPENCODE_PI_BIN = binPath;
+  const previousBin = process.env.OPENCODE_NATIVE_PI_BIN;
+  const previousModels = process.env.OPENCODE_NATIVE_PI_MODELS;
+  process.env.OPENCODE_NATIVE_PI_BIN = binPath;
   const modelIds = [
     "auto",
     "composer-2.5",
@@ -250,11 +256,11 @@ test("bare opencode-native-pi uses a cancellable read-only panel without discove
     ...modelIds,
     binPath,
   ];
-  process.env.OPENCODE_PI_MODELS = modelIds.join(",");
+  process.env.OPENCODE_NATIVE_PI_MODELS = modelIds.join(",");
 
   try {
     const captured = panelOpenCodeCommand();
-    await opencodePiExtension(captured.extension);
+    await opencodeNativePiExtension(captured.extension);
     const selections: { title: string; options: string[] }[] = [];
     const choices = ["Status (cached)", "Close"];
     await captured.command.handler("", {
@@ -294,20 +300,20 @@ test("bare opencode-native-pi uses a cancellable read-only panel without discove
       },
     });
     const configPanelText = JSON.stringify(configSelections);
-    assert.match(configPanelText, /OPENCODE_PI_BIN: set/);
-    assert.match(configPanelText, /OPENCODE_PI_MODELS: set/);
+    assert.match(configPanelText, /OPENCODE_NATIVE_PI_BIN: set/);
+    assert.match(configPanelText, /OPENCODE_NATIVE_PI_MODELS: set/);
     for (const secret of secretValues) assert.equal(configPanelText.includes(secret), false);
   } finally {
-    restoreEnv("OPENCODE_PI_BIN", previousBin);
-    restoreEnv("OPENCODE_PI_MODELS", previousModels);
+    restoreEnv("OPENCODE_NATIVE_PI_BIN", previousBin);
+    restoreEnv("OPENCODE_NATIVE_PI_MODELS", previousModels);
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
 test("opencode-native-pi panel hides configured model IDs, supports cancellation, and preserves non-TUI fallback", async () => {
-  const previousBin = process.env.OPENCODE_PI_BIN;
-  const previousModels = process.env.OPENCODE_PI_MODELS;
-  process.env.OPENCODE_PI_BIN = "/tmp/opencode-panel-secret-bin";
+  const previousBin = process.env.OPENCODE_NATIVE_PI_BIN;
+  const previousModels = process.env.OPENCODE_NATIVE_PI_MODELS;
+  process.env.OPENCODE_NATIVE_PI_BIN = "/tmp/opencode-panel-secret-bin";
   const modelIds = [
     "auto",
     "composer-2.5",
@@ -322,11 +328,11 @@ test("opencode-native-pi panel hides configured model IDs, supports cancellation
     "user@example.test",
     "token_0123456789abcdef",
   ];
-  process.env.OPENCODE_PI_MODELS = modelIds.join(",");
+  process.env.OPENCODE_NATIVE_PI_MODELS = modelIds.join(",");
 
   try {
     const captured = panelOpenCodeCommand();
-    await opencodePiExtension(captured.extension);
+    await opencodeNativePiExtension(captured.extension);
 
     let calls = 0;
     await captured.command.handler("", {
@@ -399,18 +405,18 @@ test("opencode-native-pi panel hides configured model IDs, supports cancellation
     assert.equal(calls, 0);
     assert.ok(notifications.length > 0);
   } finally {
-    restoreEnv("OPENCODE_PI_BIN", previousBin);
-    restoreEnv("OPENCODE_PI_MODELS", previousModels);
+    restoreEnv("OPENCODE_NATIVE_PI_BIN", previousBin);
+    restoreEnv("OPENCODE_NATIVE_PI_MODELS", previousModels);
   }
 });
 
 test("opencode-native-pi keeps informational rows in detail and supports Back, another section, Close, and Escape", async () => {
-  const previousModels = process.env.OPENCODE_PI_MODELS;
-  process.env.OPENCODE_PI_MODELS = "custom-panel-model";
+  const previousModels = process.env.OPENCODE_NATIVE_PI_MODELS;
+  process.env.OPENCODE_NATIVE_PI_MODELS = "custom-panel-model";
 
   try {
     const captured = panelOpenCodeCommand();
-    await opencodePiExtension(captured.extension);
+    await opencodeNativePiExtension(captured.extension);
     const selections: { title: string; options: string[] }[] = [];
     const topChoices = ["Status (cached)", "Configuration (environment presence)"];
     let statusDetailVisits = 0;
@@ -463,6 +469,6 @@ test("opencode-native-pi keeps informational rows in detail and supports Back, a
     assert.ok(escapedSelections[1]!.options.includes("Back"));
     assert.ok(escapedSelections[1]!.options.includes("Close"));
   } finally {
-    restoreEnv("OPENCODE_PI_MODELS", previousModels);
+    restoreEnv("OPENCODE_NATIVE_PI_MODELS", previousModels);
   }
 });
